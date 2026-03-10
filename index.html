@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>תור למספרה - הזמנה אונליין</title>
+    <style>
+        :root { 
+            --booked: #e74c3c; 
+            --available: #2ecc71; 
+            --primary: #2c3e50; 
+            --bg: #f4f7f6;
+        }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: var(--bg); 
+            margin: 0; 
+            padding: 15px; 
+            display: flex; 
+            justify-content: center;
+        }
+        .app-card { 
+            background: white; 
+            width: 100%; 
+            max-width: 450px; 
+            border-radius: 25px; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1); 
+            padding: 25px; 
+            box-sizing: border-box;
+            text-align: center;
+        }
+        h1 { color: var(--primary); font-size: 26px; margin-bottom: 5px; }
+        p { color: #7f8c8d; margin-bottom: 20px; }
+        
+        label { display: block; text-align: right; margin: 10px 0 5px; font-weight: bold; color: var(--primary); }
+        input { 
+            width: 100%; padding: 14px; margin-bottom: 15px; 
+            border: 2px solid #eee; border-radius: 12px; 
+            box-sizing: border-box; font-size: 16px; transition: 0.3s;
+        }
+        input:focus { border-color: var(--primary); outline: none; }
+
+        .grid-hours { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 12px; 
+            margin-top: 15px; 
+        }
+        .hour-btn { 
+            padding: 12px 5px; border: none; border-radius: 10px; 
+            font-weight: bold; color: white; cursor: pointer; 
+            transition: transform 0.2s, background 0.3s; 
+        }
+        .hour-btn:active { transform: scale(0.95); }
+        
+        .free { background-color: var(--available); }
+        .busy { background-color: var(--booked); cursor: not-allowed; opacity: 0.6; }
+        .selected { outline: 4px solid #3498db; box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); }
+
+        .main-btn { 
+            width: 100%; background-color: var(--primary); color: white; 
+            border: none; padding: 18px; border-radius: 12px; 
+            font-size: 18px; font-weight: bold; margin-top: 25px; 
+            cursor: pointer; box-shadow: 0 5px 15px rgba(44, 62, 80, 0.3);
+        }
+        #loading { display:none; color: #e67e22; font-weight: bold; margin: 10px 0; }
+        
+        .legend { display: flex; justify-content: center; gap: 15px; margin-bottom: 10px; font-size: 13px; }
+        .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-left: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="app-card">
+    <h1>✂️ המספרה שלי</h1>
+    <p>קביעת תור מהירה ב-3 שלבים</p>
+
+    <input type="text" id="userName" placeholder="שם מלא">
+    <input type="tel" id="userPhone" placeholder="מספר טלפון">
+    
+    <label>בחר תאריך:</label>
+    <input type="date" id="appointmentDate" onchange="fetchBookedSlots()">
+
+    <div class="legend">
+        <span><span class="dot" style="background:var(--available)"></span>פנוי</span>
+        <span><span class="dot" style="background:var(--booked)"></span>תפוס</span>
+    </div>
+
+    <div id="loading">מעדכן יומן זמנים...</div>
+    <div class="grid-hours" id="hoursGrid"></div>
+
+    <button class="main-btn" onclick="processBooking()">קבע תור ושלח לוואטסאפ</button>
+</div>
+
+<script>
+    // הגדרות מערכת
+    const SCRIPT_URL = "כאן_להדביק_את_הקישור_מגוגל"; 
+    const MY_PHONE = "97253353565"; 
+    const SHIFTS = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "16:00", "16:30", "17:00", "17:30", "18:00"];
+    
+    let selectedHour = null;
+    let bookedData = [];
+
+    // משיכת נתונים מגוגל שיטס
+    async function fetchBookedSlots() {
+        const date = document.getElementById('appointmentDate').value;
+        if (!date) return;
+        
+        const loading = document.getElementById('loading');
+        const grid = document.getElementById('hoursGrid');
+        
+        loading.style.display = 'block';
+        grid.innerHTML = '';
+
+        try {
+            const response = await fetch(SCRIPT_URL);
+            bookedData = await response.json();
+            renderHours(date);
+        } catch (e) {
+            console.error("שגיאה במשיכת נתונים", e);
+            alert("לא הצלחנו לטעון את התורים. וודא שהקישור של Google Script תקין.");
+        }
+        loading.style.display = 'none';
+    }
+
+    // הצגת השעות לפי הצבעים (פרטיות מלאה - רק צבעים)
+    function renderHours(selectedDate) {
+        const grid = document.getElementById('hoursGrid');
+        grid.innerHTML = '';
+
+        SHIFTS.forEach(hour => {
+            const isBooked = bookedData.some(row => {
+                if(!row[0]) return false;
+                // המרת תאריך מהטבלה לפורמט השוואה (YYYY-MM-DD)
+                const rowDate = new Date(row[0]).toISOString().split('T')[0];
+                return rowDate === selectedDate && row[1].toString().trim() === hour;
+            });
+
+            const btn = document.createElement('button');
+            btn.innerText = hour;
+            
+            if (isBooked) {
+                btn.className = 'hour-btn busy';
+                btn.disabled = true;
+            } else {
+                btn.className = 'hour-btn free';
+                btn.onclick = () => {
+                    document.querySelectorAll('.hour-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    selectedHour = hour;
+                };
+            }
+            grid.appendChild(btn);
+        });
+    }
+
+    // ביצוע הזמנה
+    async function processBooking() {
+        const name = document.getElementById('userName').value;
+        const phone = document.getElementById('userPhone').value;
+        const date = document.getElementById('appointmentDate').value;
+
+        if (!name || !phone || !date || !selectedHour) {
+            alert("אנא מלא את כל השדות ובחר שעה פנויה (בירוק)");
+            return;
+        }
+
+        // שליחה לגוגל שיטס
+        try {
+            await fetch(SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors", // לעקיפת הגדרות אבטחה של דפדפן
+                body: JSON.stringify({ name, phone, date, hour: selectedHour })
+            });
+
+            // הודעת וואטסאפ
+            const text = `שלום! אני מעוניין לקבוע תור לתספורת:%0A👤 שם: ${name}%0A📞 טלפון: ${phone}%0A📅 תאריך: ${date}%0A⏰ שעה: ${selectedHour}`;
+            const whatsappUrl = `https://wa.me/${MY_PHONE}?text=${text}`;
+
+            window.open(whatsappUrl, '_blank');
+            alert("התור נשלח בהצלחה! מיד תועבר לוואטסאפ לאישור סופי.");
+            
+            // רענון התצוגה
+            setTimeout(() => { location.reload(); }, 2000);
+
+        } catch (e) {
+            alert("הייתה תקלה בשמירת התור. נסה שוב.");
+        }
+    }
+</script>
+
+</body>
+</html>
